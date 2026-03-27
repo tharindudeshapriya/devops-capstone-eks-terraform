@@ -19,6 +19,9 @@ resource "aws_subnet" "capstone_devops_subnet" {
 
   tags = {
     Name = "capstone-devops-subnet-${count.index}"
+    # FIX: These tags are MANDATORY for AWS Load Balancers to discover the subnets!
+    "kubernetes.io/cluster/capstone-devops-cluster" = "shared"
+    "kubernetes.io/role/elb"                        = 1
   }
 }
 
@@ -94,6 +97,11 @@ resource "aws_eks_cluster" "capstone_devops" {
     subnet_ids         = aws_subnet.capstone_devops_subnet[*].id
     security_group_ids = [aws_security_group.capstone_devops_cluster_sg.id]
   }
+
+  # Ensure IAM permissions are attached BEFORE creating the cluster
+  depends_on = [
+    aws_iam_role_policy_attachment.capstone_devops_cluster_role_policy
+  ]
 }
 
 resource "aws_eks_addon" "ebs_csi_driver" {
@@ -102,6 +110,8 @@ resource "aws_eks_addon" "ebs_csi_driver" {
 
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
+
+  depends_on = [aws_eks_node_group.capstone_devops]
 }
 
 resource "aws_eks_node_group" "capstone_devops" {
@@ -122,6 +132,14 @@ resource "aws_eks_node_group" "capstone_devops" {
     ec2_ssh_key               = var.ssh_key_name
     source_security_group_ids = [aws_security_group.capstone_devops_node_sg.id]
   }
+
+  # Ensure IAM permissions are attached BEFORE creating the worker nodes
+  depends_on = [
+    aws_iam_role_policy_attachment.capstone_devops_node_group_role_policy,
+    aws_iam_role_policy_attachment.capstone_devops_node_group_cni_policy,
+    aws_iam_role_policy_attachment.capstone_devops_node_group_registry_policy,
+    aws_iam_role_policy_attachment.capstone_devops_node_group_ebs_policy
+  ]
 }
 
 resource "aws_iam_role" "capstone_devops_cluster_role" {
