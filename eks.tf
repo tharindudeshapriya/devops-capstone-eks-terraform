@@ -1,13 +1,14 @@
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 20.0"
+  version = "~> 21.0" # Using latest v21 module
 
-  cluster_name    = var.cluster_name
-  cluster_version = "1.31" # Using a modern, stable Kubernetes version
+  # Updated to v21 syntax
+  name               = var.cluster_name
+  kubernetes_version = "1.31"
 
-  vpc_id                         = module.vpc.vpc_id
-  subnet_ids                     = module.vpc.private_subnets
-  cluster_endpoint_public_access = true
+  vpc_id                 = module.vpc.vpc_id
+  subnet_ids             = module.vpc.private_subnets
+  endpoint_public_access = true
 
   # Crucial for newer EKS module versions: 
   # Grants the IAM user running Terraform 'cluster-admin' permissions
@@ -19,7 +20,7 @@ module "eks" {
       max_size     = 3
       desired_size = 2
 
-      instance_types = ["c7i-flex.large"] # c7i-flex.large will be used for this project
+      instance_types = ["c7i-flex.large"] # Maintained customized instance requirement
       capacity_type  = "ON_DEMAND"
     }
   }
@@ -29,4 +30,3 @@ module "eks" {
     Project     = "devops-capstone"
   }
 }
-
