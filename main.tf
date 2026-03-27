@@ -5,6 +5,10 @@ provider "aws" {
 resource "aws_vpc" "capstone_devops_vpc" {
   cidr_block = "10.0.0.0/16"
 
+  # FIX: EKS requires DNS support enabled so nodes can resolve the cluster endpoint!
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
   tags = {
     Name = "capstone-devops-vpc"
   }
@@ -18,8 +22,7 @@ resource "aws_subnet" "capstone_devops_subnet" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "capstone-devops-subnet-${count.index}"
-    # FIX: These tags are MANDATORY for AWS Load Balancers to discover the subnets!
+    Name                                            = "capstone-devops-subnet-${count.index}"
     "kubernetes.io/cluster/capstone-devops-cluster" = "shared"
     "kubernetes.io/role/elb"                        = 1
   }
