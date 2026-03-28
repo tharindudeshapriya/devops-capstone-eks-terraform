@@ -5,6 +5,7 @@ provider "aws" {
 resource "aws_vpc" "capstone_devops_vpc" {
   cidr_block = "10.0.0.0/16"
 
+  # REQUIRED: Ensures your worker nodes can talk to the EKS control plane
   enable_dns_support   = true
   enable_dns_hostnames = true
 
@@ -14,7 +15,7 @@ resource "aws_vpc" "capstone_devops_vpc" {
 }
 
 resource "aws_subnet" "capstone_devops_subnet" {
-  count                   = 2
+  count = 2
   vpc_id                  = aws_vpc.capstone_devops_vpc.id
   cidr_block              = cidrsubnet(aws_vpc.capstone_devops_vpc.cidr_block, 8, count.index)
   availability_zone       = element(["us-east-1a", "us-east-1b"], count.index)
@@ -22,6 +23,7 @@ resource "aws_subnet" "capstone_devops_subnet" {
 
   tags = {
     Name                                            = "capstone-devops-subnet-${count.index}"
+    # REQUIRED: Allows the NGINX Ingress Controller to build an AWS Load Balancer later
     "kubernetes.io/cluster/capstone-devops-cluster" = "shared"
     "kubernetes.io/role/elb"                        = 1
   }
@@ -99,65 +101,13 @@ resource "aws_eks_cluster" "capstone_devops" {
     subnet_ids         = aws_subnet.capstone_devops_subnet[*].id
     security_group_ids = [aws_security_group.capstone_devops_cluster_sg.id]
   }
-
+  
   depends_on = [
-    aws_iam_role_policy_attachment.capstone_devops_cluster_role_policy,
-    aws_iam_role_policy_attachment.capstone_devops_cluster_vpc_policy
+    aws_iam_role_policy_attachment.capstone_devops_cluster_role_policy
   ]
 }
 
-# --- MANDATORY OIDC & IAM FOR MODERN EBS CSI DRIVER ---
-data "tls_certificate" "eks" {
-  url = aws_eks_cluster.capstone_devops.identity[0].oidc[0].issuer
-}
-
-resource "aws_iam_openid_connect_provider" "eks_oidc" {
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
-  url             = aws_eks_cluster.capstone_devops.identity[0].oidc[0].issuer
-}
-
-resource "aws_iam_role" "ebs_csi_driver_role" {
-  name = "capstone-devops-ebs-csi-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = aws_iam_openid_connect_provider.eks_oidc.arn
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "${replace(aws_eks_cluster.capstone_devops.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
-          }
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ebs_csi_driver_policy" {
-  role       = aws_iam_role.ebs_csi_driver_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-}
-# ------------------------------------------------------
-
-resource "aws_eks_addon" "ebs_csi_driver" {
-  cluster_name             = aws_eks_cluster.capstone_devops.name
-  addon_name               = "aws-ebs-csi-driver"
-  service_account_role_arn = aws_iam_role.ebs_csi_driver_role.arn # Explicitly links the IRSA role
-
-  resolve_conflicts_on_create = "OVERWRITE"
-  resolve_conflicts_on_update = "OVERWRITE"
-
-  depends_on = [
-    aws_eks_node_group.capstone_devops,
-    aws_iam_role_policy_attachment.ebs_csi_driver_policy
-  ]
-}
+# (The aws_eks_addon block was removed from here so we can do it via eksctl in Phase 4!)
 
 resource "aws_eks_node_group" "capstone_devops" {
   cluster_name    = aws_eks_cluster.capstone_devops.name
@@ -171,17 +121,19 @@ resource "aws_eks_node_group" "capstone_devops" {
     min_size     = 3
   }
 
+  # Kept as c7i-flex.large (or t2.medium) based on your AWS limits
   instance_types = ["c7i-flex.large"]
 
   remote_access {
-    ec2_ssh_key               = var.ssh_key_name
+    ec2_ssh_key = var.ssh_key_name
     source_security_group_ids = [aws_security_group.capstone_devops_node_sg.id]
   }
-
+  
   depends_on = [
     aws_iam_role_policy_attachment.capstone_devops_node_group_role_policy,
     aws_iam_role_policy_attachment.capstone_devops_node_group_cni_policy,
-    aws_iam_role_policy_attachment.capstone_devops_node_group_registry_policy
+    aws_iam_role_policy_attachment.capstone_devops_node_group_registry_policy,
+    aws_iam_role_policy_attachment.capstone_devops_node_group_ebs_policy
   ]
 }
 
@@ -207,12 +159,6 @@ EOF
 resource "aws_iam_role_policy_attachment" "capstone_devops_cluster_role_policy" {
   role       = aws_iam_role.capstone_devops_cluster_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-}
-
-# FIX: Required policy for modern EKS clusters to allow pods to communicate
-resource "aws_iam_role_policy_attachment" "capstone_devops_cluster_vpc_policy" {
-  role       = aws_iam_role.capstone_devops_cluster_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
 }
 
 resource "aws_iam_role" "capstone_devops_node_group_role" {
@@ -247,4 +193,9 @@ resource "aws_iam_role_policy_attachment" "capstone_devops_node_group_cni_policy
 resource "aws_iam_role_policy_attachment" "capstone_devops_node_group_registry_policy" {
   role       = aws_iam_role.capstone_devops_node_group_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
+resource "aws_iam_role_policy_attachment" "capstone_devops_node_group_ebs_policy" {
+  role       = aws_iam_role.capstone_devops_node_group_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
