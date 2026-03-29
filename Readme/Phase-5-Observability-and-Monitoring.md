@@ -143,3 +143,6 @@ kubectl run apache-bench --image=httpd:alpine --rm -it -- ab -n 500000 -c 100 ht
 * **Scale-Down:** Upon completion of the stress test (when the concurrent requests ceased), the cluster entered a cool-down phase and gracefully scaled down to the baseline replica count (1 pod) to optimize AWS resource consumption.
 
 *(Visual confirmation of this event is available in the Grafana Compute Resources / Namespace (Workloads) dashboard, showing both the CPU spike and the replica count step-up).*
+
+---
+[⬅️ Back to Main README](../README.md)

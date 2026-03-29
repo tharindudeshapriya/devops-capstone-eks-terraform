@@ -179,6 +179,7 @@ Nexus manages our build artifacts (Java `.jar` files). We will also run this usi
 4. **Initial Admin Login:** Retrieve the auto-generated password by entering the container:
    `sudo docker exec -it nexus cat /nexus-data/admin.password`
 
-## Phase 1 Summary
-
 By the end of this phase, the raw infrastructure is completely established. We have isolated EC2 environments hosting our Jenkins, SonarQube, and Nexus instances, and a fully functional, secure Amazon EKS cluster waiting to receive application deployments.
+
+---
+[⬅️ Back to Main README](../README.md)

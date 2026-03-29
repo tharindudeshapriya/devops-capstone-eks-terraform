@@ -219,3 +219,6 @@ To make this a true "Mega Pipeline" where CI and CD are decoupled but fully auto
 With this in place, a developer pushing code to the application repository sets off a chain reaction that compiles the code, scans for vulnerabilities, pushes to DockerHub, updates the GitOps repository, and finally rolls out the changes live to the AWS EKS cluster—all with 100% automation.
 
 ![Live Application Secured with SSL](./images/ssl%20certified%20live%20webapp.png)
+
+---
+[⬅️ Back to Main README](../README.md)
