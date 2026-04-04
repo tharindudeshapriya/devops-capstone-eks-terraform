@@ -6,7 +6,7 @@ This repository showcases a comprehensive, end-to-end DevSecOps and Cloud DevOps
 
 ## Project Repositories
 
-This project adopts a decoupled architecture into three specialized repositories, adhering to microservice and GitOps best practices:
+This project adopts a decoupled architecture into three specialized repositories, adhering to GitOps best practices:
 
 * **Application Source Code (CI):** [tharindudeshapriya/devops-capstone-app](https://github.com/tharindudeshapriya/devops-capstone-app)
 * **Kubernetes Manifests (CD/GitOps):** [tharindudeshapriya/devops-capstone-k8s-manifests](https://github.com/tharindudeshapriya/devops-capstone-k8s-manifests)
